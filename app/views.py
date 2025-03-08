@@ -19,6 +19,7 @@ from django.views.decorators.csrf import csrf_exempt
 from .models import SensorData
 from .models import IOT
 from .models import Vehicle, PollutionEstimate
+#from app.models import RTOUser
 from .serializer import SensorDataSerializer
 
 #@csrf_exempt
@@ -119,20 +120,16 @@ def send(request):        #Using just django
             # Extracting data safely
             mac_address = data.get('mac_address')
             co = data.get('co')
-            nox = data.get('nox')
-            nh3 = data.get('nh3')
+            no2 = data.get('nox')
             co2 = data.get('co2')
-            benzene = data.get('benzene')
             sulphide = data.get('sulphide')
-            ch4 = data.get('ch4')
-            butane = data.get('butane')
 
             # Log the extracted values
             print(f"MAC Address: {mac_address}")
-            print(f"CO: {co}, NOx: {nox}, NH3: {nh3}, CO2: {co2}, Benzene: {benzene}, Sulphide: {sulphide}, CH4: {ch4}, Butane: {butane}")
+            print(f"CO: {co}, NOx: {no2}, CO2: {co2}, Sulphide: {sulphide}")
 
             # Check if all required data is present
-            if all([mac_address, co, nox, nh3, co2, benzene, sulphide, ch4, butane]):
+            if all([mac_address, co, no2, co2, sulphide]):
                 # Retrieve the IOTMAP instance based on the MAC address
                 try:
                     iot_map_instance = IOT.objects.get(iot_id=mac_address)
@@ -143,13 +140,9 @@ def send(request):        #Using just django
                 sensor_data = SensorData(
                     iot_id=iot_map_instance,
                     co=co,
-                    nox=nox,
-                    nh3=nh3,
+                    nox=no2,
                     co2=co2,
-                    benzene=benzene,
-                    sulphide=sulphide,
-                    ch4=ch4,
-                    butane=butane
+                    so2=sulphide
                 )
                 sensor_data.save()  # Save the new sensor data to the database
 
@@ -163,3 +156,74 @@ def send(request):        #Using just django
             return JsonResponse({"status": "error", "message": "Invalid JSON"}, status=400)
 
     return JsonResponse({"status": "error", "message": "Invalid request method"}, status=405)
+
+
+
+
+from django.shortcuts import render, redirect
+from django.urls import reverse
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required, user_passes_test
+from .models import CustomUser, Vehicle, IOT
+from django.contrib import messages
+
+# Role Checks
+def is_data_input(user):
+    return user.role == 'dataInput'
+
+def is_admin(user):
+    return user.role == 'admin'
+
+# Login View
+def login_view(request):
+    if request.method == "POST":
+        username = request.POST['username']
+        password = request.POST['password']
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            return JsonResponse({"status": "success"})
+        else:
+            messages.error(request, "Invalid credentials")
+    return render(request, 'login.html')
+
+# Dashboard
+#@login_required
+def dashboard(request):
+    return render(request, 'dashboard.html')
+
+
+# User Registration (Only for dataInput role)
+#@login_required
+def register_user(request):
+    if request.method == "POST":
+        owner_name = request.POST['owner_name']
+        owner_uid=request.POST['owner_uid']
+        number_plate = request.POST['number_plate']
+        year = request.POST['year']
+        iot_id = request.POST['iot_id']
+
+        print(owner_name)
+        print(owner_uid)
+        print(number_plate)
+        print(year)
+        # Create Vehicle
+        vehicle = Vehicle.objects.create(number_plate=number_plate, year=year,owner=owner_name)
+
+        # Create IoT
+        iot = IOT.objects.create(iot=iot_id, number_plate=vehicle, owner=owner_name)
+
+        messages.success(request, "User registered successfully!")
+        return redirect(reverse('register_user'))
+
+    return render(request, 'register_user.html')
+
+# Logout
+def logout_view(request):
+    logout(request)
+    return JsonResponse({"status": "success", "message": "Logged out successfully"})
+
+
+
+def register(request):
+    return render(request,'register_user.html')

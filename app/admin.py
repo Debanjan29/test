@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.contrib import admin
 from .models import CustomUser,Vehicle,SensorData,PollutionEstimate,IOT
 
+#admin.site.register(RTOUser)
 admin.site.register(CustomUser)
 admin.site.register(Vehicle)
 admin.site.register(IOT)
