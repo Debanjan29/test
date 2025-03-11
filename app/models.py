@@ -154,6 +154,8 @@ def PollutionCalculation(co,no2,so2,co2,pm,vehicleType,fuelType):
         if(co>15000 or no2>3500 or so2>10 or co2>3140 or pm>20):
             return 1
 
+from django.core.mail import send_mail
+
 @receiver(post_save, sender=PollutionEstimate)
 def auto_generate_challan(sender, instance, created, **kwargs):
     if created and instance.finalEstimate == 1:
@@ -166,6 +168,37 @@ def auto_generate_challan(sender, instance, created, **kwargs):
 
         # ✅ Send Email
         challan.send_email_notification()
+    elif created and instance.finalEstimate == 0:
+        send_congratulations_email(instance)
+        
+
+def send_congratulations_email(instance):
+    
+    vehicle = instance.iot.number_plate
+    owner_email = vehicle.owner.email
+
+    subject = "🎉 Pollution Test Passed Successfully!"
+    message = f"""
+Dear {vehicle.owner.owner},
+
+We are happy to inform you that your vehicle ({vehicle.number_plate}) has successfully passed the pollution test.
+
+✅ No Fine has been generated.
+✅ Next checkup due in 6 months.
+
+Thank you for keeping your vehicle eco-friendly. 🎉
+"""
+    # ✅ Send Email
+    email = EmailMessage(
+        subject,
+        message,
+        'settings.DEFAULT_FROM_EMAIL',
+        [owner_email]
+    )
+    
+    email.send()
+
+
 
 
 
