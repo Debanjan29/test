@@ -100,6 +100,9 @@ def create_pollution_estimate(sender,instance,created, **kwargs):
 def calculate_pollution_estimate(iot_id):
     sensor_data=SensorData.objects.filter(iot=iot_id).order_by('-timestamp')[:5]
 
+    number_plate=IOT.objects.get(iot=iot_id).number_plate
+    vehicleType=Vehicle.objects.get(number_plate=number_plate).Vehicle_type
+    fuelType=Vehicle.objects.get(number_plate=number_plate).FuelType
     averages = sensor_data.aggregate(
         avg_co=Avg('co'),
         avg_no2=Avg('no2'),
@@ -111,22 +114,149 @@ def calculate_pollution_estimate(iot_id):
     # Create and save a PollutionEstimate record
     pollution_estimate = PollutionEstimate(
     iot=iot_id,
-    avg_co=averages['avg_co'],
-    avg_no2=averages['avg_no2'],
-    avg_so2=averages['avg_so2'],
-    avg_co2=averages['avg_co2'],
+    avg_co=averages['avg_co']*28.01/24.45,# PPM TO mg/m3
+    avg_no2=averages['avg_no2']*46.01/24.45,
+    avg_so2=averages['avg_so2'],  #Unit in ppm as per Standards
+    avg_co2=averages['avg_co2']*44.01/24.45,
     avg_pm=averages['avg_pm'],
-    finalEstimate = 0)
+    finalEstimate = PollutionCalculation(averages['avg_co']*28.01/24.45,averages['avg_no2']*46.01/24.45,averages['avg_so2'],averages['avg_co2']*44.01/24.45,averages['avg_pm'],vehicleType,fuelType)
+    )
 
     
     pollution_estimate.save()
 
     return pollution_estimate
 
-# @receiver(post_save,sender=PollutionEstimate)
-#  def DeleteSensorData(self,instance,created,**kwargs):
-    if created:
-        iot_=instance.iot
 
-        SensorData.objects.filter(iot_id=iot_).delete()
+def PollutionCalculation(co,no2,so2,co2,pm,vehicleType,fuelType):
+    if(vehicleType=='2W' and fuelType=='Petrol'):
+        #2W
+        if(co>2000 or no2>100 or so2>10 or co2>3170 or pm>200):
+            return 1
+
+    elif(vehicleType=='2W' and fuelType=='Diesel'):
+        if(co>2000 or no2>100 or so2>10 or co2>3140 or pm>200):
+            return 1
+
+
+    elif(vehicleType=='4W' and fuelType=='Petrol'):
+        if(co>1000 or no2>60 or so2>10 or co2>3170 or pm>4.5):
+            return 1
+
+
+
+    elif(vehicleType=='4W' and fuelType=='Diesel'):
+        if(co>500 or no2>80 or so2>10 or co2>3140 or pm>4.5):
+            return 1
+
+
+    elif(vehicleType=='HDV'):
+        if(co>15000 or no2>3500 or so2>10 or co2>3140 or pm>20):
+            return 1
+
+@receiver(post_save, sender=PollutionEstimate)
+def auto_generate_challan(sender, instance, created, **kwargs):
+    if created and instance.finalEstimate == 1:
+        # ✅ Generate Fine
+        fine_amount = 1000
+        challan = Challan.objects.create(
+            iot=instance.iot,
+            amount=fine_amount
+        )
+
+        # ✅ Send Email
+        challan.send_email_notification()
+
+
+
+# @receiver(post_save,sender=PollutionEstimate)
+# def DeleteSensorData(self,instance,created,**kwargs):
+#     if created:
+#         iot_=instance.iot
+
+#         SensorData.objects.filter(iot_id=iot_).delete()
+
+
+
 #ma '''
+
+
+
+from django.db import models
+from django.core.mail import EmailMessage
+from io import BytesIO
+from reportlab.pdfgen import canvas
+import stripe
+from django.conf import settings
+
+stripe.api_key = settings.STRIPE_SECRET_KEY
+
+class Challan(models.Model):
+    iot = models.ForeignKey('IOT', on_delete=models.CASCADE)
+    amount = models.FloatField()
+    paid = models.BooleanField(default=False)
+    issued_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Challan for {self.iot} - Paid: {self.paid}"
+
+    def generate_payment_link(self):
+        checkout_session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price_data': {
+                    'currency': 'inr',
+                    'product_data': {
+                        'name': f"Pollution Fine for {self.iot}",
+                    },
+                    'unit_amount': int(self.amount * 100),
+                },
+                'quantity': 1,
+            }],
+            mode='payment',
+            success_url=f"{settings.SITE_URL}/payment-success/?challan_id={self.id}",
+            cancel_url=f"{settings.SITE_URL}/payment-cancel/",
+        )
+        return checkout_session.url
+
+    # def generate_pdf_receipt(self):
+    #     buffer = BytesIO()
+    #     p = canvas.Canvas(buffer)
+    #     p.drawString(100, 800, f"Challan Receipt")
+    #     p.drawString(100, 780, f"Vehicle Number: {self.iot.number_plate}")
+    #     p.drawString(100, 760, f"Amount: ₹{self.amount}")
+    #     p.drawString(100, 740, f"Issued Date: {self.issued_at}")
+    #     p.drawString(100, 720, f"Payment Status: {'Paid' if self.paid else 'Unpaid'}")
+    #     p.drawString(100, 700, f"Payment Link: {self.generate_payment_link()}")
+    #     p.showPage()
+    #     p.save()
+    #     buffer.seek(0)
+    #     return buffer
+
+    def send_email_notification(self):
+        # Generate PDF and Payment Link
+        #pdf_buffer = self.generate_pdf_receipt()
+        payment_url = self.generate_payment_link()
+
+        No_Plate=IOT.objects.get(iot=self.iot).number_plate
+        # Email Content
+        message = f"""
+        Your vehicle {self.iot.number_plate} has exceeded the pollution threshold.
+        A fine of ₹{self.amount} has been generated.
+        Please pay the fine using the link below:
+
+        Payment Link: {payment_url}
+
+        Thank you for your cooperation.
+        """
+
+        # Send Email with PDF
+        email = EmailMessage(
+            'Pollution Fine Notification',
+            message,
+            settings.DEFAULT_FROM_EMAIL,
+            [self.iot.owner.email]
+        )
+
+        #email.attach(f'challan_{self.id}.pdf', pdf_buffer.getvalue(), 'application/pdf')
+        email.send()

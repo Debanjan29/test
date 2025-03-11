@@ -21,14 +21,28 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-#SECRET_KEY = "django-insecure-#(_r1b9@e8aitv5o$af(nz_jfj5xl%4du^-uqfsgimva9j+_3f"
+
 SECRET_KEY=os.environ.get("SECRET_KEY","FVNNUVH7")
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
+EMAIL_HOST='smtp.gmail.com'
+EMAIL_PORT=587
+EMAIL_HOST_USER=os.environ.get("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD=os.environ.get("EMAIL_HOST_PASSWORD")
+EMAIL_USE_TLS=True
+EMAIL_BACKEND='django.core.mail.backends.smtp.EmailBackend'
 ALLOWED_HOSTS = ["*"]
 
 
+# Stripe Configuration
+STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY')
+STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY')
+
+if DEBUG:
+    SITE_URL = 'http://127.0.0.1:8000'
+else:
+    SITE_URL = os.environ.get('SITE_URL')
 # Application definition
 
 INSTALLED_APPS = [
@@ -87,15 +101,16 @@ WSGI_APPLICATION = "project.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+
+
 #Delete before pushing in production
 
+#Production
 DATABASES = {
         'default': dj_database_url.config(
         default=os.getenv('DATABASE_URL')
         
     )}
-
-
 
 
 # Password validation

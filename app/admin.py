@@ -1,8 +1,8 @@
 from django.contrib import admin
 from django.contrib import admin
-from .models import CustomUser,Vehicle,SensorData,PollutionEstimate,IOT
+from .models import CustomUser,Vehicle,SensorData,PollutionEstimate,IOT,Challan
 
-#admin.site.register(RTOUser)
+admin.site.register(Challan)
 admin.site.register(CustomUser)
 admin.site.register(Vehicle)
 admin.site.register(IOT)

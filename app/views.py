@@ -22,25 +22,82 @@ from .models import Vehicle, PollutionEstimate
 #from app.models import RTOUser
 from .serializer import SensorDataSerializer
 
+
+
+from django.core.mail import send_mail
+from django.core.mail import EmailMessage
+from django.conf import settings
+from django.http import FileResponse
+from reportlab.pdfgen import canvas
+import io
+
+
+def check_Status(request):
+    if request.method=='POST':
+        data=request.data
+        iot_id=data.get('iot')
+        if(IOT.objects.contains(iot=iot_id)):
+            return 'registered'
+    return 'IOT_id_not_exist'
+     
+
+def generate_pdf_send_mail(request):
+    # Create a file-like buffer to receive PDF data.
+    buffer = io.BytesIO()
+
+    # Create the PDF object, using the buffer as its "file."
+    p = canvas.Canvas(buffer)
+    f='test'
+    # Draw things on the PDF. Here's where the PDF generation happens.
+    p.drawString(100, 100, "Hello, World!")
+    p.drawString(100, 800, "This is your PDF Receipt")
+    p.drawString(100, 780, f"Message: {f}")
+    # Close the PDF object cleanly, and we're done.
+    p.showPage()
+    p.save()
+
+    # File response
+    buffer.seek(0)
+
+    email_Obj=EmailMessage(
+        'Subject here',#Title
+        'Here is the message from Django.',#Message
+        'settings.EMAIL_HOST_USER',#From
+        ["debanjanbhatt29@gmail.com"],
+)
+    email_Obj.attach('receipt.pdf', buffer.getvalue(), 'application/pdf')   
+    email_Obj.send()
+    return FileResponse(buffer, as_attachment=True, filename='receipt.pdf')
 #@csrf_exempt
 
+# def sendMail(request):
+#     email_Obj=EmailMessage(
+#         'Subject here',#Title
+#         'Here is the message from Django.',#Message
+#         'settings.EMAIL_HOST_USER',#From
+#         ["debanjanbhatt29@gmail.com"],
+#     fail_silently=False,)
+#     email_Obj.attach('receipt.pdf', buffer.getvalue(), 'application/pdf')
+#     return JsonResponse({"status": "success", "message": "Mail sent!"})
+
+
 @api_view(['POST'])
-def checkStatus(self,request):
+def checkStatus(request):
         
-        data=json.loads(request)
-        mac_address = data.get('mac_address')
-        iot_device = IOT.objects.filter(iot=mac_address).first()
+        data=json.loads(request.body)
+        iot_id = data.get('iot')
+        iot_device = IOT.objects.filter(iot=iot_id).first()
 
         if not iot_device:
             return Response({"response": "IOT_id_not_exist"}, status=status.HTTP_200_OK)
 
         else:
 
-            no_plate=IOT.objects.get(iot=mac_address)
+            no_plate=IOT.objects.get(iot=iot_id)
             # Calculate the next data collection date
-            last_data = PollutionEstimate.objects.filter(iot=mac_address).order_by('-timestamp').first()
+            last_data = PollutionEstimate.objects.filter(iot=iot_id).order_by('-timestamp').first()
 
-            if last_data:
+            if last_data and last_data.timestamp:
                 next_due_date = last_data.timestamp + timedelta(days=180)
             else:
                 next_due_date = Vehicle.objects.get(number_plate=no_plate).year  # Use initial assigned date if no data exists
@@ -48,12 +105,10 @@ def checkStatus(self,request):
             current_date = timezone.now().date()
 
             if current_date >= next_due_date:
-                    return Response({"status": "registered", "action": "yes"}, status=status.HTTP_200_OK)
+                    return Response("registered|yes", status=status.HTTP_200_OK)
             else:
-                    return Response({"status": "registered", "action": "no"}, status=status.HTTP_200_OK)   
-
-            vehicle = Vehicle.objects.get(iot_id=mac_address)
-            return Response({"status": "registered", "registration_date": vehicle.year}, status=status.HTTP_200_OK)
+                   return Response("registered|no", status=status.HTTP_200_OK)
+  
             
 
         
@@ -160,70 +215,25 @@ def send(request):        #Using just django
 
 
 
-from django.shortcuts import render, redirect
-from django.urls import reverse
-from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.decorators import login_required, user_passes_test
-from .models import CustomUser, Vehicle, IOT
-from django.contrib import messages
+from django.shortcuts import get_object_or_404
+from django.http import JsonResponse
+from .models import Challan
 
-# Role Checks
-def is_data_input(user):
-    return user.role == 'dataInput'
+def payment_success(request):
+    challan_id = request.GET.get('challan_id')
+    challan = get_object_or_404(Challan, id=challan_id)
 
-def is_admin(user):
-    return user.role == 'admin'
+    # ✅ Mark Challan as Paid
+    challan.paid = True
+    challan.save()
 
-# Login View
-def login_view(request):
-    if request.method == "POST":
-        username = request.POST['username']
-        password = request.POST['password']
-        user = authenticate(request, username=username, password=password)
-        if user is not None:
-            login(request, user)
-            return JsonResponse({"status": "success"})
-        else:
-            messages.error(request, "Invalid credentials")
-    return render(request, 'login.html')
+    return JsonResponse({
+        'status': 'success',
+        'message': f'Payment received for Challan {challan_id}'
+    })
 
-# Dashboard
-#@login_required
-def dashboard(request):
-    return render(request, 'dashboard.html')
-
-
-# User Registration (Only for dataInput role)
-#@login_required
-def register_user(request):
-    if request.method == "POST":
-        owner_name = request.POST['owner_name']
-        owner_uid=request.POST['owner_uid']
-        number_plate = request.POST['number_plate']
-        year = request.POST['year']
-        iot_id = request.POST['iot_id']
-
-        print(owner_name)
-        print(owner_uid)
-        print(number_plate)
-        print(year)
-        # Create Vehicle
-        vehicle = Vehicle.objects.create(number_plate=number_plate, year=year,owner=owner_name)
-
-        # Create IoT
-        iot = IOT.objects.create(iot=iot_id, number_plate=vehicle, owner=owner_name)
-
-        messages.success(request, "User registered successfully!")
-        return redirect(reverse('register_user'))
-
-    return render(request, 'register_user.html')
-
-# Logout
-def logout_view(request):
-    logout(request)
-    return JsonResponse({"status": "success", "message": "Logged out successfully"})
-
-
-
-def register(request):
-    return render(request,'register_user.html')
+def payment_cancel(request):
+    return JsonResponse({
+        'status': 'failed',
+        'message': 'Payment cancelled by the user'
+    })
