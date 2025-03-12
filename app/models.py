@@ -93,11 +93,12 @@ def create_pollution_estimate(sender,instance,created, **kwargs):
 
         if data_count >= 7:
             # Calculate pollution estimate
-            print("Working on Pollution Estimate for {iot_id}")
+            print(f"Working on Pollution Estimate for {iot_id}")
             calculate_pollution_estimate(iot_id)
 
 
 def calculate_pollution_estimate(iot_id):
+    print(f"Entered on calculate_pollution_estimate for {iot_id}")
     sensor_data=SensorData.objects.filter(iot=iot_id).order_by('-timestamp')[:5]
 
     number_plate=IOT.objects.get(iot=iot_id).number_plate
@@ -112,6 +113,7 @@ def calculate_pollution_estimate(iot_id):
     )
 
     # Create and save a PollutionEstimate record
+    print(f"Saving and calculating for pollution_estimate for {iot_id}")
     pollution_estimate = PollutionEstimate(
     iot=iot_id,
     avg_co=averages['avg_co']*28.01/24.45,# PPM TO mg/m3
@@ -124,7 +126,7 @@ def calculate_pollution_estimate(iot_id):
 
     
     pollution_estimate.save()
-
+    print(f"Saved pollution_estimate for {iot_id}")
     return pollution_estimate
 
 
@@ -153,6 +155,8 @@ def PollutionCalculation(co,no2,so2,co2,pm,vehicleType,fuelType):
     elif(vehicleType=='HDV'):
         if(co>15000 or no2>3500 or so2>10 or co2>3140 or pm>20):
             return 1
+
+    return 0
 
 from django.core.mail import send_mail
 
