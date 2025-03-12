@@ -158,18 +158,20 @@ from django.core.mail import send_mail
 
 @receiver(post_save, sender=PollutionEstimate)
 def auto_generate_challan(sender, instance, created, **kwargs):
-    if created and instance.finalEstimate == 1:
-        # ✅ Generate Fine
-        fine_amount = 1000
-        challan = Challan.objects.create(
-            iot=instance.iot,
-            amount=fine_amount
-        )
-
-        # ✅ Send Email
-        challan.send_email_notification()
-    elif created and instance.finalEstimate == 0:
-        send_congratulations_email(instance)
+    if created:
+        try:
+            if instance.finalEstimate == 1:
+                fine_amount = 1000
+                challan = Challan.objects.create(
+                    iot=instance.iot,
+                    amount=fine_amount
+                )
+                challan.send_email_notification()
+            elif instance.finalEstimate == 0:
+                send_congratulations_email(instance)
+        except Exception as e:
+            # Log the error so you can inspect it later without breaking the entire request
+            print("Error in post_save signal:", str(e))
         
 
 def send_congratulations_email(instance):
@@ -192,7 +194,7 @@ Thank you for keeping your vehicle eco-friendly. 🎉
     email = EmailMessage(
         subject,
         message,
-        'settings.DEFAULT_FROM_EMAIL',
+        settings.DEFAULT_FROM_EMAIL,
         [owner_email]
     )
     
