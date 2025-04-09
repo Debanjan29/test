@@ -57,7 +57,7 @@ class PollutionEstimate(models.Model):
     avg_so2 = models.FloatField()  # Average SO2 level in ppm     3
     avg_co2 = models.FloatField()  # Average CO2 level in ppm     4
     #avg_ch4 = models.FloatField()  # Average CH4 level in ppm
-    avg_pm = models.FloatField()  # Average PM level in ppm   5
+    #avg_pm = models.FloatField()  # Average PM level in ppm   5
     #avg_nh3 = models.FloatField()  # Average NH3 level in ppm
 
     finalEstimate=models.FloatField()  #Final weighted avg.
@@ -75,7 +75,7 @@ class SensorData(models.Model):
     so2 = models.FloatField()  # SO2 level in ppm
     co2 = models.FloatField()  # CO2 level in ppm
     #ch4 = models.FloatField()  # CH4 level in ppm
-    pm = models.FloatField()  # Particular-Matter level in ppm
+    #pm = models.FloatField()  # Particular-Matter level in ppm
     #nh3 = models.FloatField()  # NH3 level in ppm
     
 
@@ -123,7 +123,7 @@ def calculate_pollution_estimat(iot_device, sensor_date):   #For same day pollut
         avg_no2=Avg('no2'),
         avg_so2=Avg('so2'),
         avg_co2=Avg('co2'),
-        avg_pm=Avg('pm'),
+        #avg_pm=Avg('pm'),
     )
 
     pollution_estimate = PollutionEstimate(
@@ -132,13 +132,13 @@ def calculate_pollution_estimat(iot_device, sensor_date):   #For same day pollut
         avg_no2=averages['avg_no2'] * 46.01 / 24.45,
         avg_so2=averages['avg_so2'],  # Unit in ppm as per Standards
         avg_co2=averages['avg_co2'] * 44.01 / 24.45,
-        avg_pm=averages['avg_pm'],
+        #avg_pm=averages['avg_pm'],
         finalEstimate=PollutionCalculation(
             averages['avg_co'] * 28.01 / 24.45,
             averages['avg_no2'] * 46.01 / 24.45,
             averages['avg_so2'],
             averages['avg_co2'] * 44.01 / 24.45,
-            averages['avg_pm'],
+            #averages['avg_pm'],
             vehicleType,
             fuelType,
         )
@@ -163,7 +163,7 @@ def calculate_pollution_estimate(iot_id):
         avg_no2=Avg('no2'),
         avg_so2=Avg('so2'),
         avg_co2=Avg('co2'),
-        avg_pm=Avg('pm'),
+        #avg_pm=Avg('pm'),
     )
 
     # Create and save a PollutionEstimate record
@@ -174,8 +174,8 @@ def calculate_pollution_estimate(iot_id):
     avg_no2=averages['avg_no2']*46.01/24.45,
     avg_so2=averages['avg_so2'],  #Unit in ppm as per Standards
     avg_co2=averages['avg_co2']*44.01/24.45,
-    avg_pm=averages['avg_pm'],
-    finalEstimate = PollutionCalculation(averages['avg_co']*28.01/24.45,averages['avg_no2']*46.01/24.45,averages['avg_so2'],averages['avg_co2']*44.01/24.45,averages['avg_pm'],vehicleType,fuelType)
+    #avg_pm=averages['avg_pm'],
+    finalEstimate = PollutionCalculation(averages['avg_co']*28.01/24.45,averages['avg_no2']*46.01/24.45,averages['avg_so2'],averages['avg_co2']*44.01/24.45,vehicleType,fuelType)
     )
 
     
@@ -184,30 +184,30 @@ def calculate_pollution_estimate(iot_id):
     return pollution_estimate
 
 
-def PollutionCalculation(co,no2,so2,co2,pm,vehicleType,fuelType):
+def PollutionCalculation(co,no2,so2,co2,vehicleType,fuelType):
     if(vehicleType=='2W' and fuelType=='Petrol'):
         #2W
-        if(co>2000 or no2>100 or so2>10 or co2>3170 or pm>200):
+        if(co>2000 or no2>100 or so2>10 or co2>3170 ):
             return 1
 
     elif(vehicleType=='2W' and fuelType=='Diesel'):
-        if(co>2000 or no2>100 or so2>10 or co2>3140 or pm>200):
+        if(co>2000 or no2>100 or so2>10 or co2>3140):
             return 1
 
 
     elif(vehicleType=='4W' and fuelType=='Petrol'):
-        if(co>1000 or no2>60 or so2>10 or co2>3170 or pm>4.5):
+        if(co>1000 or no2>60 or so2>10 or co2>3170 ):
             return 1
 
 
 
     elif(vehicleType=='4W' and fuelType=='Diesel'):
-        if(co>500 or no2>80 or so2>10 or co2>3140 or pm>4.5):
+        if(co>500 or no2>80 or so2>10 or co2>3140 ):
             return 1
 
 
     elif(vehicleType=='HDV'):
-        if(co>15000 or no2>3500 or so2>10 or co2>3140 or pm>20):
+        if(co>15000 or no2>3500 or so2>10 or co2>3140):
             return 1
 
     return 0
