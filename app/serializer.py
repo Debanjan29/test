@@ -4,7 +4,7 @@ from .models import IOT,SensorData,Vehicle
 class SensorDataSerializer(serializers.ModelSerializer):
     class Meta:
         model=SensorData
-        fields = ['iot', 'co', 'co2','no2','so2','pm']
+        fields = ['iot', 'co', 'co2','no2','so2'] # Removed 'pm'
     
     def validate_co(self, value):
         if value is None:
